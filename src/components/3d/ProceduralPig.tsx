@@ -21,6 +21,14 @@ const PEN_BOUNDS: Record<number, { minX: number; maxX: number; minZ: number; max
   4: { minX: 2.0, maxX: 7.8, minZ: -5.2, maxZ: -1.4 },
 };
 
+// Pen coordinates for designated food feeding trough and water drinking bowl stations
+const PEN_STATIONS: Record<number, { feed: [number, number, number]; water: [number, number, number] }> = {
+  1: { feed: [-6.2, 0, 4.0], water: [-3.6, 0, 4.0] },
+  2: { feed: [-6.2, 0, -4.0], water: [-3.6, 0, -4.0] },
+  3: { feed: [3.6, 0, 4.0], water: [6.2, 0, 4.0] },
+  4: { feed: [3.6, 0, -4.0], water: [6.2, 0, -4.0] },
+};
+
 // Global spatial registry for inter-pig collision avoidance and obstacle steering
 const pigSpatialRegistry = new Map<string, { x: number; z: number; isResting: boolean }>();
 
@@ -167,6 +175,51 @@ function createCurvedSwineEar(isLeft: boolean): THREE.BufferGeometry {
   return geom;
 }
 
+/**
+ * Creates an authentic, anatomically tapered 3D helical corkscrew swine tail
+ */
+function createCorkscrewTailGeometry(): THREE.BufferGeometry {
+  const points: THREE.Vector3[] = [];
+  const segments = 40;
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments;
+    const turns = 2.4 * Math.PI * 2;
+    const angle = t * turns;
+    const radius = 0.048 * (1.0 - t * 0.28);
+    const x = Math.sin(angle) * radius + (t * 0.032);
+    const y = Math.sin(t * Math.PI * 0.5) * 0.038 + Math.cos(angle) * radius;
+    const z = -t * 0.16;
+    points.push(new THREE.Vector3(x, y, z));
+  }
+
+  const path = new THREE.CatmullRomCurve3(points);
+  const tubularSegments = 40;
+  const radialSegments = 8;
+  const geom = new THREE.TubeGeometry(path, tubularSegments, 0.015, radialSegments, false);
+  const pos = geom.attributes.position;
+  const center = new THREE.Vector3();
+
+  // Taper the tube from a thicker root at the rump to a slender tip
+  for (let idx = 0; idx < pos.count; idx++) {
+    const i = Math.floor(idx / (radialSegments + 1));
+    const t = i / tubularSegments;
+    path.getPoint(t, center);
+    const scale = 1.3 - t * 0.7; // 1.3x at root, tapering to 0.6x at tip
+    const vx = pos.getX(idx);
+    const vy = pos.getY(idx);
+    const vz = pos.getZ(idx);
+    pos.setXYZ(
+      idx,
+      center.x + (vx - center.x) * scale,
+      center.y + (vy - center.y) * scale,
+      center.z + (vz - center.z) * scale
+    );
+  }
+  pos.needsUpdate = true;
+  geom.computeVertexNormals();
+  return geom;
+}
+
 export const ProceduralPig: React.FC<ProceduralPigProps> = ({
   pig,
   isSelected,
@@ -189,12 +242,13 @@ export const ProceduralPig: React.FC<ProceduralPigProps> = ({
   const bounds = PEN_BOUNDS[pig.penId] || PEN_BOUNDS[1];
   const isLethargic = pig.behavior === 'LETHARGIC';
 
-  // Cached seamless organic body mesh
+  // Cached seamless organic body mesh & features
   const bodyGeometry = useMemo(() => createOrganicSwineBody(), []);
   const earGeometryLeft = useMemo(() => createCurvedSwineEar(true), []);
   const earGeometryRight = useMemo(() => createCurvedSwineEar(false), []);
+  const tailGeometry = useMemo(() => createCorkscrewTailGeometry(), []);
 
-  // Autonomous wandering & collision state inside pen boundaries
+  // Autonomous wandering, feeding, drinking & collision state
   const wanderState = useRef({
     pos: new THREE.Vector3(pig.position[0], pig.position[1], pig.position[2]),
     target: new THREE.Vector3(
@@ -203,7 +257,7 @@ export const ProceduralPig: React.FC<ProceduralPigProps> = ({
       bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ)
     ),
     heading: pig.rotation,
-    state: 'WALKING' as 'WALKING' | 'SNIFFING' | 'EATING' | 'RESTING',
+    state: 'WALKING' as 'WALKING' | 'SNIFFING' | 'EATING' | 'DRINKING' | 'RESTING',
     timer: Math.random() * 4 + 2,
     speed: 0.42 + Math.random() * 0.25,
     dogSitProgress: isLethargic ? 1.0 : 0.0,
@@ -245,25 +299,42 @@ export const ProceduralPig: React.FC<ProceduralPigProps> = ({
     if (isLethargic || sitP > 0.4) {
       ws.state = 'RESTING';
     } else {
-      // 2. Autonomous state timer
+      // 2. Autonomous state timer & station destination selection
       ws.timer -= delta;
       if (ws.timer <= 0) {
         if (ws.state === 'WALKING') {
-          ws.state = Math.random() > 0.5 ? 'SNIFFING' : 'EATING';
-          ws.timer = Math.random() * 4 + 3;
+          const rand = Math.random();
+          const st = PEN_STATIONS[pig.penId] || PEN_STATIONS[1];
+
+          if (rand < 0.35) {
+            // Sniff around current location
+            ws.state = 'SNIFFING';
+            ws.timer = Math.random() * 4 + 3;
+          } else if (rand < 0.68) {
+            // Walk directly over to designated Feed Trough to eat pellets
+            ws.target.set(st.feed[0] + (Math.random() - 0.5) * 0.4, pig.position[1], st.feed[2]);
+            ws.state = 'EATING';
+            ws.timer = Math.random() * 6 + 5;
+          } else {
+            // Walk directly over to designated Water Aqua-Bowl to drink water
+            ws.target.set(st.water[0] + (Math.random() - 0.5) * 0.3, pig.position[1], st.water[2]);
+            ws.state = 'DRINKING';
+            ws.timer = Math.random() * 5 + 4;
+          }
         } else {
-          // Pick a random target in pen away from borders
+          // Finished eating / drinking / sniffing -> resume wandering across pen
           ws.target.set(
-            bounds.minX + 0.9 + Math.random() * (bounds.maxX - bounds.minX - 1.8),
+            bounds.minX + 1.0 + Math.random() * (bounds.maxX - bounds.minX - 2.0),
             pig.position[1],
-            bounds.minZ + 0.9 + Math.random() * (bounds.maxZ - bounds.minZ - 1.8)
+            bounds.minZ + 1.0 + Math.random() * (bounds.maxZ - bounds.minZ - 2.0)
           );
           ws.state = 'WALKING';
           ws.timer = Math.random() * 7 + 4;
         }
       }
 
-      if (ws.state === 'WALKING') {
+      // If walking towards target (or approaching food / water station)
+      if (ws.state === 'WALKING' || (ws.state === 'EATING' && Math.hypot(ws.target.x - ws.pos.x, ws.target.z - ws.pos.z) > 0.5) || (ws.state === 'DRINKING' && Math.hypot(ws.target.x - ws.pos.x, ws.target.z - ws.pos.z) > 0.5)) {
         // Goal Vector towards current target
         const toTargetX = ws.target.x - ws.pos.x;
         const toTargetZ = ws.target.z - ws.pos.z;
@@ -379,14 +450,31 @@ export const ProceduralPig: React.FC<ProceduralPigProps> = ({
     }
 
     // -------------------------------------------------------------
-    // CLINICAL DOG-SITTING POSTURE (Image 2 - Panel 3)
+    // POSTURE ARTICULATION: DOG-SITTING vs FEEDING vs DRINKING vs ROAMING
     // -------------------------------------------------------------
     if (spineGroupRef.current) {
-      // Pelvis sits on floor, spine angled upward by 36°
-      const pitchAngle = THREE.MathUtils.degToRad(sitP * -36);
-      spineGroupRef.current.rotation.x = pitchAngle;
-      spineGroupRef.current.position.y = THREE.MathUtils.lerp(0.44, 0.22, sitP);
-      spineGroupRef.current.position.z = THREE.MathUtils.lerp(0, -0.12, sitP);
+      if (sitP > 0.1) {
+        // Pelvis sits on floor, spine angled upward by 36°
+        const pitchAngle = THREE.MathUtils.degToRad(sitP * -36);
+        spineGroupRef.current.rotation.x = pitchAngle;
+        spineGroupRef.current.position.y = THREE.MathUtils.lerp(0.44, 0.22, sitP);
+        spineGroupRef.current.position.z = THREE.MathUtils.lerp(0, -0.12, sitP);
+      } else if (ws.state === 'EATING' || ws.state === 'DRINKING') {
+        // Dipping head down into feed trough or water bowl with subtle chewing / sipping bob
+        const headBob = Math.sin(t * 6.0) * 0.032;
+        spineGroupRef.current.rotation.x = THREE.MathUtils.degToRad(-15) + headBob;
+        spineGroupRef.current.position.y = 0.40;
+        spineGroupRef.current.position.z = 0.04;
+      } else if (ws.state === 'SNIFFING') {
+        const sniffBob = Math.sin(t * 9.0) * 0.02;
+        spineGroupRef.current.rotation.x = THREE.MathUtils.degToRad(-10) + sniffBob;
+        spineGroupRef.current.position.y = 0.42;
+        spineGroupRef.current.position.z = 0.02;
+      } else {
+        spineGroupRef.current.rotation.x = 0;
+        spineGroupRef.current.position.y = 0.44;
+        spineGroupRef.current.position.z = 0;
+      }
 
       // Heavy, labored breathing pulse for infected pig
       const breathFreq = isLethargic ? 2.0 : 3.5;
@@ -396,8 +484,10 @@ export const ProceduralPig: React.FC<ProceduralPigProps> = ({
     }
 
     // Four limb locomotion & sitting articulation
+    const distToDest = Math.hypot(ws.target.x - ws.pos.x, ws.target.z - ws.pos.z);
+    const isStationNavigating = (ws.state === 'EATING' || ws.state === 'DRINKING') && distToDest > 0.5;
+    const isWalking = (ws.state === 'WALKING' || isStationNavigating) && sitP < 0.2;
     const walkPhase = t * ws.speed * 8.0;
-    const isWalking = ws.state === 'WALKING' && sitP < 0.2;
 
     // FRONT LEGS: In dog-sitting, extend straight down vertically from raised chest to floor
     if (legFLRef.current && legFRRef.current) {
@@ -435,9 +525,21 @@ export const ProceduralPig: React.FC<ProceduralPigProps> = ({
       }
     }
 
-    // Tail Wagging
+    // 3D Corkscrew Tail Animation (Lively wagging when active, drooping when sick)
     if (tailGroupRef.current) {
-      tailGroupRef.current.rotation.y = isLethargic ? 0.04 : Math.sin(t * 7.5) * 0.35;
+      if (isLethargic) {
+        // Limp, drooping tail when sick/lethargic
+        tailGroupRef.current.rotation.x = 0.55;
+        tailGroupRef.current.rotation.y = 0.02;
+        tailGroupRef.current.rotation.z = -0.1;
+      } else {
+        // Lively, cheerful corkscrew tail wagging while walking/sniffing
+        const wagSpeed = ws.state === 'WALKING' ? 9.5 : 4.5;
+        const wagAmp = ws.state === 'WALKING' ? 0.36 : 0.16;
+        tailGroupRef.current.rotation.x = 0.26 + Math.sin(t * wagSpeed) * 0.08;
+        tailGroupRef.current.rotation.y = Math.sin(t * wagSpeed) * wagAmp;
+        tailGroupRef.current.rotation.z = 0.12 + Math.cos(t * wagSpeed) * 0.12;
+      }
     }
   });
 
@@ -589,11 +691,21 @@ export const ProceduralPig: React.FC<ProceduralPigProps> = ({
           </mesh>
         </group>
 
-        {/* 5. CORKSCREW SPIRAL TAIL */}
-        <group ref={tailGroupRef} position={[0, 0.16, -0.71]} rotation={[0.45, 0, 0.15]}>
-          <mesh rotation={[Math.PI / 2.8, 0, 0]}>
-            <torusGeometry args={[0.08, 0.024, 8, 20, Math.PI * 2.2]} />
-            <meshStandardMaterial color={snoutColor} roughness={0.5} />
+        {/* 5. AUTHENTIC 3D HELICAL CORKSCREW TAIL */}
+        <group ref={tailGroupRef} position={[0, 0.12, -0.71]} rotation={[0.28, 0, 0]}>
+          {/* Fleshy root base connection to rump */}
+          <mesh position={[0, 0, 0]}>
+            <sphereGeometry args={[0.032, 10, 10]} />
+            <meshStandardMaterial color={skinColor} roughness={0.5} />
+          </mesh>
+          {/* Tapered 3D Corkscrew Helical Tube */}
+          <mesh geometry={tailGeometry} castShadow>
+            <meshStandardMaterial color={skinColor} roughness={0.48} />
+          </mesh>
+          {/* Soft tapered tail tip */}
+          <mesh position={[0.072, 0.032, -0.16]}>
+            <sphereGeometry args={[0.012, 8, 8]} />
+            <meshStandardMaterial color={snoutColor} roughness={0.4} />
           </mesh>
         </group>
 
@@ -759,7 +871,7 @@ export const ProceduralPig: React.FC<ProceduralPigProps> = ({
             anchorX="left"
             anchorY="middle"
           >
-            {`${pig.tagNumber} • ${isLethargic ? 'LETHARGIC (DOG-SIT)' : pig.behavior}`}
+            {`${pig.tagNumber} • ${isLethargic ? 'LETHARGIC (DOG-SIT)' : (wanderState.current.state || pig.behavior)}`}
           </Text>
 
           {/* Sub-label with Temp / Risk */}
