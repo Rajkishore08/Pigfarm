@@ -128,7 +128,7 @@ export const InformationPanel: React.FC = () => {
           </div>
           {isLethargic && (
             <p className="text-[11px] text-red-300 mt-2 font-medium">
-              ⚠ Critical behavioral deviation: persistent recumbency with slow respiration pattern flagged.
+              ⚠ Critical clinical deviation: dog-sitting posture with labored respiration flagged (acute lethargy indicator).
             </p>
           )}
         </div>

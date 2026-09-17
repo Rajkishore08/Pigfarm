@@ -140,21 +140,21 @@ export const CosmosModule: React.FC = () => {
                   Synthesizes rare disease behavior sequences across time (Normal → Reduced Movement → Severe Lethargy).
                 </p>
 
-                {/* Animated Progression Sequence */}
+                {/* Animated Progression Sequence (Matches Cosmos Reference Image) */}
                 <div className="space-y-1.5 mb-3 bg-dark-950 p-2.5 rounded-lg border border-slate-800 text-xs">
                   <div className="flex items-center gap-2 text-green-400 font-mono text-[11px]">
                     <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
-                    <span>01. NORMAL BASELINE PIG</span>
+                    <span>01. STANDING BASELINE PIG</span>
                   </div>
                   <div className="w-3 h-2 border-l border-slate-700 ml-1.5" />
                   <div className="flex items-center gap-2 text-amber-400 font-mono text-[11px]">
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                    <span>02. REDUCED LOCOMOTION</span>
+                    <span>02. REDUCED ACTIVITY (HEAD DOWN)</span>
                   </div>
                   <div className="w-3 h-2 border-l border-slate-700 ml-1.5" />
                   <div className="flex items-center gap-2 text-red-400 font-mono text-[11px]">
                     <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
-                    <span>03. ACUTE LETHARGIC PROFILE</span>
+                    <span>03. DOG-SITTING LETHARGIC POSTURE</span>
                   </div>
                 </div>
 
