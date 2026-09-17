@@ -235,84 +235,140 @@ export const ProceduralPig: React.FC<ProceduralPigProps> = ({
     ws.dogSitProgress = THREE.MathUtils.lerp(ws.dogSitProgress, targetSit, delta * 3.0);
     const sitP = ws.dogSitProgress; // 0 = standing, 1 = dog-sitting
 
-    if (isLethargic) {
-      ws.state = 'RESTING';
-    } else {
-      // Autonomous state machine
-      ws.timer -= delta;
-      if (ws.timer <= 0) {
-        if (ws.state === 'WALKING') {
-          ws.state = Math.random() > 0.45 ? 'SNIFFING' : 'EATING';
-          ws.timer = Math.random() * 4 + 3;
-        } else {
-          ws.target.set(
-            bounds.minX + Math.random() * (bounds.maxX - bounds.minX),
-            pig.position[1],
-            bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ)
-          );
-          ws.state = 'WALKING';
-          ws.timer = Math.random() * 6 + 4;
-        }
-      }
-
-      if (ws.state === 'WALKING') {
-        const diffX = ws.target.x - ws.pos.x;
-        const diffZ = ws.target.z - ws.pos.z;
-        const dist = Math.hypot(diffX, diffZ);
-
-        if (dist > 0.3) {
-          const targetAngle = Math.atan2(diffX, diffZ);
-          let angleDiff = targetAngle - ws.heading;
-          while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-          while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-          ws.heading += angleDiff * Math.min(1, delta * 3.0);
-
-          const moveDist = ws.speed * delta;
-          ws.pos.x += Math.sin(ws.heading) * moveDist;
-          ws.pos.z += Math.cos(ws.heading) * moveDist;
-        } else {
-          ws.state = 'SNIFFING';
-          ws.timer = Math.random() * 3 + 2;
-        }
-      }
-    }
-
-    // -------------------------------------------------------------
-    // INTER-PIG COLLISION AVOIDANCE & SEPARATION
-    // (Prevents any pig from ever entering or walking inside another pig)
-    // -------------------------------------------------------------
+    // 1. Update Spatial Registry with current position
     pigSpatialRegistry.set(pig.id, {
       x: ws.pos.x,
       z: ws.pos.z,
       isResting: isLethargic || sitP > 0.4 || ws.state === 'RESTING',
     });
 
+    if (isLethargic || sitP > 0.4) {
+      ws.state = 'RESTING';
+    } else {
+      // 2. Autonomous state timer
+      ws.timer -= delta;
+      if (ws.timer <= 0) {
+        if (ws.state === 'WALKING') {
+          ws.state = Math.random() > 0.5 ? 'SNIFFING' : 'EATING';
+          ws.timer = Math.random() * 4 + 3;
+        } else {
+          // Pick a random target in pen away from borders
+          ws.target.set(
+            bounds.minX + 0.9 + Math.random() * (bounds.maxX - bounds.minX - 1.8),
+            pig.position[1],
+            bounds.minZ + 0.9 + Math.random() * (bounds.maxZ - bounds.minZ - 1.8)
+          );
+          ws.state = 'WALKING';
+          ws.timer = Math.random() * 7 + 4;
+        }
+      }
+
+      if (ws.state === 'WALKING') {
+        // Goal Vector towards current target
+        const toTargetX = ws.target.x - ws.pos.x;
+        const toTargetZ = ws.target.z - ws.pos.z;
+        const targetDist = Math.hypot(toTargetX, toTargetZ);
+
+        if (targetDist < 0.4) {
+          ws.state = 'SNIFFING';
+          ws.timer = Math.random() * 3 + 2;
+        } else {
+          // Normalize goal direction
+          const dirX = toTargetX / targetDist;
+          const dirZ = toTargetZ / targetDist;
+
+          // Compute avoidance vector from other pigs (smooth early avoidance)
+          let avoidX = 0;
+          let avoidZ = 0;
+          let hasObstacle = false;
+
+          for (const [otherId, other] of pigSpatialRegistry.entries()) {
+            if (otherId === pig.id) continue;
+            const dx = ws.pos.x - other.x;
+            const dz = ws.pos.z - other.z;
+            const dist = Math.hypot(dx, dz);
+            const avoidRadius = 1.8; // Early detection bubble for smooth turning
+
+            if (dist < avoidRadius && dist > 0.001) {
+              hasObstacle = true;
+              const strength = (avoidRadius - dist) / avoidRadius;
+              const repelMag = Math.pow(strength, 1.8) * 3.6;
+              avoidX += (dx / dist) * repelMag;
+              avoidZ += (dz / dist) * repelMag;
+            }
+          }
+
+          // Wall & fence avoidance (smooth turning before hitting pen edges)
+          const wallMargin = 1.0;
+          if (ws.pos.x < bounds.minX + wallMargin) {
+            avoidX += ((bounds.minX + wallMargin - ws.pos.x) / wallMargin) * 2.4;
+          } else if (ws.pos.x > bounds.maxX - wallMargin) {
+            avoidX -= ((ws.pos.x - (bounds.maxX - wallMargin)) / wallMargin) * 2.4;
+          }
+          if (ws.pos.z < bounds.minZ + wallMargin) {
+            avoidZ += ((bounds.minZ + wallMargin - ws.pos.z) / wallMargin) * 2.4;
+          } else if (ws.pos.z > bounds.maxZ - wallMargin) {
+            avoidZ -= ((ws.pos.z - (bounds.maxZ - wallMargin)) / wallMargin) * 2.4;
+          }
+
+          // Combined steering direction
+          const combinedX = dirX + avoidX;
+          const combinedZ = dirZ + avoidZ;
+
+          // If obstacle is encountered ahead, update target to open space to prevent oscillation
+          if (hasObstacle && (avoidX * avoidX + avoidZ * avoidZ) > 1.2) {
+            const escapeAngle = Math.atan2(combinedX, combinedZ);
+            const forwardX = Math.sin(escapeAngle);
+            const forwardZ = Math.cos(escapeAngle);
+            ws.target.x = THREE.MathUtils.clamp(ws.pos.x + forwardX * 2.2, bounds.minX + 0.8, bounds.maxX - 0.8);
+            ws.target.z = THREE.MathUtils.clamp(ws.pos.z + forwardZ * 2.2, bounds.minZ + 0.8, bounds.maxZ - 0.8);
+          }
+
+          // Calculate desired heading smoothly
+          const desiredHeading = Math.atan2(combinedX, combinedZ);
+
+          // Calculate shortest angular turn (no 360-degree flips or flickering)
+          let angleDiff = desiredHeading - ws.heading;
+          while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+          while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+
+          // Smooth turn rate clamped to realistic animal turn speed
+          const maxTurnRate = delta * 2.8; // ~160 deg/sec
+          const turn = THREE.MathUtils.clamp(angleDiff, -maxTurnRate, maxTurnRate);
+          ws.heading += turn;
+
+          // Normalize heading in [-PI, PI]
+          while (ws.heading > Math.PI) ws.heading -= Math.PI * 2;
+          while (ws.heading < -Math.PI) ws.heading += Math.PI * 2;
+
+          // Forward locomotion with turn slowdown
+          const turnSlowdown = Math.max(0.25, Math.cos(angleDiff));
+          const step = ws.speed * turnSlowdown * delta;
+
+          ws.pos.x += Math.sin(ws.heading) * step;
+          ws.pos.z += Math.cos(ws.heading) * step;
+        }
+      }
+    }
+
+    // Soft physical separation safety (no teleportation or sudden jerks)
     for (const [otherId, other] of pigSpatialRegistry.entries()) {
       if (otherId === pig.id) continue;
       const dx = ws.pos.x - other.x;
       const dz = ws.pos.z - other.z;
       const dist = Math.hypot(dx, dz);
-      const minSeparation = 1.35; // Safe buffer distance between swine centers
+      const hardSeparation = 1.15; // Minimum physical safety bubble
 
-      if (dist < minSeparation && dist > 0.001) {
-        const overlap = minSeparation - dist;
-        const nx = dx / dist;
-        const nz = dz / dist;
-
-        // If the other pig is resting/dog-sitting, walking pig yields and deflects around it
-        const pushFactor = other.isResting ? overlap * 0.95 : overlap * 0.5;
-        ws.pos.x += nx * pushFactor;
-        ws.pos.z += nz * pushFactor;
-
-        // Steer heading smoothly away from the collision
-        const awayAngle = Math.atan2(dx, dz);
-        ws.heading = THREE.MathUtils.lerp(ws.heading, awayAngle, delta * 5.0);
+      if (dist < hardSeparation && dist > 0.001) {
+        const pushDist = (hardSeparation - dist) * 0.5 * Math.min(1, delta * 5.0);
+        ws.pos.x += (dx / dist) * pushDist;
+        ws.pos.z += (dz / dist) * pushDist;
       }
     }
 
-    // Constrain strictly within pen boundaries
-    ws.pos.x = THREE.MathUtils.clamp(ws.pos.x, bounds.minX + 0.4, bounds.maxX - 0.4);
-    ws.pos.z = THREE.MathUtils.clamp(ws.pos.z, bounds.minZ + 0.4, bounds.maxZ - 0.4);
+    // Keep smoothly within pen boundaries
+    ws.pos.x = THREE.MathUtils.clamp(ws.pos.x, bounds.minX + 0.5, bounds.maxX - 0.5);
+    ws.pos.z = THREE.MathUtils.clamp(ws.pos.z, bounds.minZ + 0.5, bounds.maxZ - 0.5);
 
     // Apply root position
     if (rootGroupRef.current) {
