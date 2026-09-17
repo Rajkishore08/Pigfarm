@@ -476,31 +476,63 @@ export const ProceduralPig: React.FC<ProceduralPigProps> = ({
           />
         </mesh>
 
-        {/* 2. REALISTIC SNOUT DISC & DUAL FLARED NOSTRILS */}
-        <group position={[0, -0.09, 0.81]} rotation={[0.32, 0, 0]}>
-          {/* Main Snout Disc (Rhinarium) */}
-          <mesh castShadow>
-            <cylinderGeometry args={[0.125, 0.135, 0.06, 24]} />
-            <meshStandardMaterial color={snoutColor} roughness={0.38} metalness={0.02} />
+        {/* 2. AUTHENTIC ANATOMICAL SWINE SNOUT (RHINARIUM & NOSTRILS) */}
+        <group position={[0, -0.08, 0.82]} rotation={[Math.PI / 2 + 0.16, 0, 0]}>
+          {/* Main Snout Disc (Broad oval pad) */}
+          <mesh castShadow scale={[1.18, 1.0, 0.92]}>
+            <cylinderGeometry args={[0.125, 0.138, 0.055, 32]} />
+            <meshStandardMaterial color={snoutColor} roughness={0.36} metalness={0.02} />
           </mesh>
 
-          {/* Left Nostril (Indented Oval) */}
-          <mesh position={[-0.042, 0.031, 0.005]} rotation={[0, 0, 0.15]}>
-            <cylinderGeometry args={[0.024, 0.028, 0.02, 12]} />
-            <meshBasicMaterial color="#241412" />
+          {/* Fleshy Rolled Outer Rim of the Snout Disc */}
+          <mesh position={[0, 0.024, 0]} scale={[1.18, 1.0, 0.92]} rotation={[-Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[0.118, 0.016, 12, 32]} />
+            <meshStandardMaterial color={snoutColor} roughness={0.34} metalness={0.02} />
           </mesh>
 
-          {/* Right Nostril (Indented Oval) */}
-          <mesh position={[0.042, 0.031, 0.005]} rotation={[0, 0, -0.15]}>
-            <cylinderGeometry args={[0.024, 0.028, 0.02, 12]} />
-            <meshBasicMaterial color="#241412" />
+          {/* Left Nostril (Recessed dark oval cavity) */}
+          <group position={[-0.042, 0.03, 0]} rotation={[0, 0, 0.22]}>
+            <mesh scale={[0.026, 0.018, 0.042]}>
+              <cylinderGeometry args={[1, 1, 1, 16]} />
+              <meshBasicMaterial color="#1a0f0d" />
+            </mesh>
+            {/* Subtle soft nostril border rim */}
+            <mesh position={[0, 0.002, 0]} scale={[0.028, 0.004, 0.044]}>
+              <cylinderGeometry args={[1, 1, 1, 16]} />
+              <meshStandardMaterial color="#d47980" roughness={0.4} />
+            </mesh>
+          </group>
+
+          {/* Right Nostril (Recessed dark oval cavity) */}
+          <group position={[0.042, 0.03, 0]} rotation={[0, 0, -0.22]}>
+            <mesh scale={[0.026, 0.018, 0.042]}>
+              <cylinderGeometry args={[1, 1, 1, 16]} />
+              <meshBasicMaterial color="#1a0f0d" />
+            </mesh>
+            <mesh position={[0, 0.002, 0]} scale={[0.028, 0.004, 0.044]}>
+              <cylinderGeometry args={[1, 1, 1, 16]} />
+              <meshStandardMaterial color="#d47980" roughness={0.4} />
+            </mesh>
+          </group>
+
+          {/* Vertical Septum Crease between nostrils */}
+          <mesh position={[0, 0.03, 0]}>
+            <boxGeometry args={[0.008, 0.01, 0.045]} />
+            <meshStandardMaterial color="#d47980" roughness={0.5} />
           </mesh>
 
-          {/* Lower Jaw / Lip under the snout */}
-          <mesh position={[0, -0.065, -0.06]} rotation={[-0.2, 0, 0]}>
-            <boxGeometry args={[0.13, 0.045, 0.12]} />
-            <meshStandardMaterial color={skinColor} roughness={0.5} />
-          </mesh>
+          {/* Lower Jaw & Chin tucked under snout */}
+          <group position={[0, -0.05, -0.06]} rotation={[-0.24, 0, 0]}>
+            <mesh castShadow>
+              <boxGeometry args={[0.13, 0.048, 0.12]} />
+              <meshStandardMaterial color={skinColor} roughness={0.52} />
+            </mesh>
+            {/* Soft pink lower lip */}
+            <mesh position={[0, 0.02, 0.05]}>
+              <cylinderGeometry args={[0.055, 0.06, 0.02, 16]} />
+              <meshStandardMaterial color={snoutColor} roughness={0.45} />
+            </mesh>
+          </group>
         </group>
 
         {/* 3. LATERAL SWINE EYES WITH SUBTLE EYELIDS */}
