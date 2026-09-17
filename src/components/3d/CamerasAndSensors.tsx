@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
 import * as THREE from 'three';
+import { useSimulation } from '../../state/useSimulationStore';
 import type { CameraData, SensorData } from '../../types';
 
 interface CamerasAndSensorsProps {
@@ -23,6 +24,7 @@ export const CamerasAndSensors: React.FC<CamerasAndSensorsProps> = ({
   onSelectSensor,
   selectedId,
 }) => {
+  const store = useSimulation();
   const pulseRef = useRef<THREE.Group>(null);
 
   useFrame((state) => {
@@ -45,6 +47,9 @@ export const CamerasAndSensors: React.FC<CamerasAndSensorsProps> = ({
       {/* OVERHEAD AI CAMERAS */}
       {showCameras &&
         cameras.map((cam) => {
+          // If we are looking through Camera 01 in Camera Feed Mode, hide its own 3D model
+          if (store.cameraFeedMode && cam.id === 'cam-01') return null;
+
           const isSelected = selectedId === cam.id;
 
           return (

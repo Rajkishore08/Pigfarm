@@ -75,37 +75,19 @@ export const InferenceMonitor: React.FC = () => {
         </div>
       </div>
 
-      {/* Target Reticle & AI Bounding Box on Pig 024 */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[340px] h-[220px] pointer-events-none">
-        {/* Animated Scanning Laser Line */}
+      {/* Viewfinder Frame Guides (unobtrusive edges, never blocking center view) */}
+      <div className="absolute inset-16 pointer-events-none border border-cyan-500/20 rounded-2xl">
+        {/* Subtle Corner Accents */}
+        <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-cyan-400" />
+        <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-cyan-400" />
+        <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-cyan-400" />
+        <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-cyan-400" />
+
+        {/* Subtle Scanning Laser Line */}
         <div 
-          className="absolute left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_12px_#00e5ff] z-10"
+          className="absolute left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-cyan-400/40 to-transparent z-10"
           style={{ top: `${scanY}%` }}
         />
-
-        {/* Corner Reticle Brackets */}
-        <div className={`absolute inset-0 border-2 rounded-lg transition-colors duration-300 ${
-          isLethargic 
-            ? 'border-red-500 shadow-glow-red animate-pulse' 
-            : 'border-cyan-400 shadow-glow-cyan'
-        }`}>
-          {/* Top Left Tag */}
-          <div className={`absolute -top-7 left-0 px-2 py-0.5 rounded text-[11px] font-mono font-bold flex items-center gap-1.5 ${
-            isLethargic ? 'bg-red-600 text-white' : 'bg-cyan-500 text-dark-950'
-          }`}>
-            <Crosshair className="w-3 h-3" />
-            <span>{targetPig.tagNumber} • {targetPig.behavior}</span>
-            <span className="text-[10px] opacity-80 font-normal">AI: {targetPig.aiConfidence}%</span>
-          </div>
-
-          {/* Bottom Right Warning Tag */}
-          {isLethargic && (
-            <div className="absolute -bottom-7 right-0 bg-red-600 text-white px-2 py-0.5 rounded text-[11px] font-mono font-bold flex items-center gap-1">
-              <AlertTriangle className="w-3 h-3" />
-              <span>HEALTH RISK: 87% (LETHARGY)</span>
-            </div>
-          )}
-        </div>
       </div>
 
       {/* Bottom Live Analysis HUD & Disease Scenario Sequencer */}

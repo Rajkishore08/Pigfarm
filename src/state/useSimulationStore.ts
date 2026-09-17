@@ -573,7 +573,8 @@ class SimulationStore {
     this.diseaseScenarioActive = true;
     this.diseaseScenarioStep = 1;
     this.setStage('ai-inference');
-    this.cameraFeedMode = true;
+    // Keep cameraFeedMode false so user remains in full 3D Orbit mode with free camera movement
+    this.cameraFeedMode = false;
     this.alertActive = false;
     this.alertData = null;
     this.setSelectedObject({ type: 'PIG', id: 'pig-024', data: this.pigs.find(p => p.id === 'pig-024') });

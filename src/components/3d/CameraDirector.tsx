@@ -17,6 +17,7 @@ export const CameraDirector: React.FC<CameraDirectorProps> = ({ controlsRef }) =
   const isAnimating = useRef(false);
 
   // Attach event listener so that whenever user touches or drags the controls,
+  // Attach event listeners so whenever user touches or drags the controls,
   // we immediately release programmatic camera control!
   useEffect(() => {
     const controls = controlsRef.current;
@@ -26,9 +27,18 @@ export const CameraDirector: React.FC<CameraDirectorProps> = ({ controlsRef }) =
       isAnimating.current = false;
     };
 
+    const handleChange = () => {
+      // If user is actively dragging / rotating / zooming
+      if ((controls as any).state !== -1) {
+        isAnimating.current = false;
+      }
+    };
+
     controls.addEventListener('start', handleStart);
+    controls.addEventListener('change', handleChange);
     return () => {
       controls.removeEventListener('start', handleStart);
+      controls.removeEventListener('change', handleChange);
     };
   }, [controlsRef]);
 
@@ -43,7 +53,7 @@ export const CameraDirector: React.FC<CameraDirectorProps> = ({ controlsRef }) =
           targetLook.current.set(0, 0, 0);
           break;
         case 2: // DATA & BEHAVIOR: Focus on Pig Pen 1
-          targetPos.current.set(-4.2, 4.0, 6.0);
+          targetPos.current.set(-4.2, 5.0, 7.5);
           targetLook.current.set(-4.2, 0.5, 2.2);
           break;
         case 3: // COSMOS: High angle training overview
@@ -58,12 +68,12 @@ export const CameraDirector: React.FC<CameraDirectorProps> = ({ controlsRef }) =
           targetPos.current.set(9.2, 2.5, 8.0);
           targetLook.current.set(8.8, 1.2, 5.5);
           break;
-        case 6: // DETECTION: Zoom into Pig 024
-          targetPos.current.set(-3.6, 2.2, 4.2);
+        case 6: // DETECTION: Zoom into Pig 024 with clear angle
+          targetPos.current.set(-2.5, 3.8, 5.5);
           targetLook.current.set(-4.2, 0.45, 2.2);
           break;
-        case 7: // ALERT: Slightly elevated drama shot on Pig 024
-          targetPos.current.set(-3.2, 2.8, 4.8);
+        case 7: // ALERT: Elevated drama shot on Pig 024
+          targetPos.current.set(-2.2, 4.2, 5.8);
           targetLook.current.set(-4.2, 0.45, 2.2);
           break;
       }
@@ -71,9 +81,9 @@ export const CameraDirector: React.FC<CameraDirectorProps> = ({ controlsRef }) =
     }
 
     if (store.cameraFeedMode) {
-      // Perspective matching overhead Camera 01 looking down at Pen 1
-      targetPos.current.set(-4.5, 4.8, 2.6);
-      targetLook.current.set(-4.5, 0.2, 2.2);
+      // Elevated overhead view of Pen 1 placed safely below ceiling camera mounts
+      targetPos.current.set(-4.5, 3.8, 5.2);
+      targetLook.current.set(-4.5, 0.4, 2.2);
       return;
     }
 
@@ -82,8 +92,9 @@ export const CameraDirector: React.FC<CameraDirectorProps> = ({ controlsRef }) =
         case 'PIG': {
           const pig = store.pigs.find((p) => p.id === store.selectedObject?.id);
           if (pig) {
-            targetPos.current.set(pig.position[0] + 1.8, 2.2, pig.position[2] + 2.8);
-            targetLook.current.set(pig.position[0], 0.5, pig.position[2]);
+            // Elevated clear 3/4 view with comfortable distance, no clipping
+            targetPos.current.set(pig.position[0] + 3.0, 3.8, pig.position[2] + 4.2);
+            targetLook.current.set(pig.position[0], 0.6, pig.position[2]);
           }
           break;
         }
